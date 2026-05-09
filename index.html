@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle Financeiro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0efe9;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --text2: #6b6b65;
+    --text3: #9e9e97;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --green: #0F6E56;
+    --green-bg: #E1F5EE;
+    --green-dark: #085041;
+    --red: #993C1D;
+    --red-bg: #FAECE7;
+    --red-dark: #712B13;
+    --blue: #185FA5;
+    --blue-bg: #E6F1FB;
+    --blue-dark: #0C447C;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --surface: #1e1e1c;
+      --surface2: #282826;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.18);
+      --text: #f0efe9;
+      --text2: #a0a09a;
+      --text3: #6b6b65;
+      --green: #5DCAA5;
+      --green-bg: #04342C;
+      --green-dark: #9FE1CB;
+      --red: #F0997B;
+      --red-bg: #4A1B0C;
+      --red-dark: #F5C4B3;
+      --blue: #85B7EB;
+      --blue-bg: #042C53;
+      --blue-dark: #B5D4F4;
+    }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 15px; }
+
+  /* LOGIN */
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+  .login-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 2.5rem; width: 100%; max-width: 380px; }
+  .login-logo { font-size: 32px; margin-bottom: 1rem; }
+  .login-card h1 { font-size: 22px; font-weight: 600; margin-bottom: .25rem; letter-spacing: -0.5px; }
+  .login-card p { font-size: 13px; color: var(--text2); margin-bottom: 2rem; }
+  .login-error { font-size: 12px; color: var(--red); margin-top: .75rem; background: var(--red-bg); padding: 8px 12px; border-radius: var(--radius-sm); display: none; }
+  .login-error.show { display: block; }
+
+  /* LAYOUT */
+  .app { display: none; max-width: 1140px; margin: 0 auto; padding: 1.5rem; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  .header h1 { font-size: 20px; font-weight: 600; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .user-email { font-size: 12px; color: var(--text2); }
+
+  /* NAV */
+  .nav { display: flex; gap: 4px; background: var(--surface2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 4px; margin-bottom: 1.5rem; }
+  .nav button { flex: 1; padding: 8px 12px; border: none; background: transparent; border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; }
+  .nav button.active { background: var(--surface); color: var(--text); border: 0.5px solid var(--border); }
+  .nav button:hover:not(.active) { color: var(--text); }
+
+  /* CARDS */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.25rem; }
+  .card .label { font-size: 11px; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .6px; font-weight: 500; }
+  .card .value { font-size: 21px; font-weight: 600; font-family: 'DM Mono', monospace; letter-spacing: -1px; }
+  .card.receita .value { color: var(--green); }
+  .card.despesa .value { color: var(--red); }
+  .card.investimento .value { color: var(--blue); }
+  .saldo-pos { color: var(--green) !important; }
+  .saldo-neg { color: var(--red) !important; }
+
+  /* SECTION */
+  .section { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.25rem; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .section-title { font-size: 14px; font-weight: 600; }
+
+  /* FORMS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 12px; font-weight: 500; color: var(--text2); }
+  .form-group input, .form-group select, .form-group textarea {
+    padding: 9px 12px; border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface2); color: var(--text); font-family: inherit; font-size: 13px;
+    outline: none; transition: border .15s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--border2); }
+  .form-group.full { grid-column: 1 / -1; }
+  .conditional { display: none; }
+  .conditional.visible { display: flex; flex-direction: column; gap: 5px; }
+
+  /* BUTTONS */
+  .btn { padding: 8px 16px; border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; border: 0.5px solid var(--border2); background: transparent; color: var(--text); }
+  .btn:hover { background: var(--surface2); }
+  .btn-primary { background: var(--blue); color: var(--blue-bg); border-color: var(--blue); }
+  .btn-primary:hover { background: var(--blue-dark); border-color: var(--blue-dark); color: var(--blue-bg); }
+  .btn-success { background: var(--green); color: var(--green-bg); border-color: var(--green); }
+  .btn-success:hover { background: var(--green-dark); border-color: var(--green-dark); color: var(--green-bg); }
+  .btn-ghost { color: var(--text2); border-color: transparent; }
+  .btn-danger { color: var(--red); border-color: var(--red); background: transparent; }
+  .btn-danger:hover { background: var(--red-bg); }
+  .btn-full { width: 100%; padding: 11px; font-size: 14px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+
+  /* TABLE */
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filters select, .filters input[type=month] {
+    padding: 7px 10px; border: 0.5px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface2); color: var(--text); font-family: inherit; font-size: 12px; outline: none;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; border-bottom: 0.5px solid var(--border); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text3); }
+  td { padding: 10px 12px; border-bottom: 0.5px solid var(--border); color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .empty { text-align: center; padding: 3rem; color: var(--text3); font-size: 13px; }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge.receita { background: var(--green-bg); color: var(--green-dark); }
+  .badge.despesa { background: var(--red-bg); color: var(--red-dark); }
+  .badge.investimento { background: var(--blue-bg); color: var(--blue-dark); }
+  .amount { font-family: 'DM Mono', monospace; font-weight: 500; font-size: 13px; }
+  .amount.receita { color: var(--green); }
+  .amount.despesa { color: var(--red); }
+  .amount.investimento { color: var(--blue); }
+
+  /* PAGINATION */
+  .pagination { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin-top: 1rem; font-size: 12px; color: var(--text2); }
+  .pagination button { padding: 4px 10px; border: 0.5px solid var(--border); border-radius: var(--radius-sm); background: transparent; font-family: inherit; font-size: 12px; cursor: pointer; color: var(--text2); }
+  .pagination button:disabled { opacity: .4; cursor: default; }
+
+  /* TABS */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* CATEGORIES */
+  .cat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+  .cat-item { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; border-bottom: 0.5px solid var(--border); font-size: 13px; }
+  .cat-item:last-child { border-bottom: none; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; display: none; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.5rem; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text2); padding: 2px 6px; border-radius: var(--radius-sm); }
+  .modal-close:hover { background: var(--surface2); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--surface); border: 0.5px solid var(--border2); border-radius: var(--radius); padding: .75rem 1.25rem; font-size: 13px; z-index: 999; opacity: 0; transition: opacity .2s; pointer-events: none; box-shadow: 0 4px 24px rgba(0,0,0,.12); }
+  .toast.show { opacity: 1; }
+
+  @media (max-width: 700px) {
+    .cards { grid-template-columns: 1fr 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    .cat-grid { grid-template-columns: 1fr; }
+    .nav button { font-size: 11px; padding: 7px 6px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">💰</div>
+    <h1>Controle Financeiro</h1>
+    <p>Entre com sua conta para continuar</p>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>E-mail</label>
+      <input type="email" id="login-email" placeholder="seu@email.com" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="form-group" style="margin-bottom:.5rem">
+      <label>Senha</label>
+      <input type="password" id="login-password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="btn btn-primary btn-full" id="btn-login" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app-screen">
+  <div class="header">
+    <h1>💰 Controle Financeiro</h1>
+    <div class="header-right">
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-ghost" onclick="doLogout()">Sair</button>
+    </div>
+  </div>
+
+  <div class="nav">
+    <button class="active" onclick="switchTab('dashboard')">Dashboard</button>
+    <button onclick="switchTab('lancamentos')">Lançamentos</button>
+    <button onclick="switchTab('novo')">+ Novo</button>
+    <button onclick="switchTab('categorias')">Categorias</button>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="tab-dashboard" class="tab-content active">
+    <div class="cards">
+      <div class="card receita"><div class="label">Receitas</div><div class="value" id="total-receita">R$ 0</div></div>
+      <div class="card despesa"><div class="label">Despesas</div><div class="value" id="total-despesa">R$ 0</div></div>
+      <div class="card investimento"><div class="label">Investimentos</div><div class="value" id="total-investimento">R$ 0</div></div>
+      <div class="card"><div class="label">Saldo Líquido</div><div class="value" id="total-saldo">R$ 0</div></div>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Últimas transações</span>
+        <button class="btn btn-ghost" onclick="switchTab('lancamentos')">Ver todas →</button>
+      </div>
+      <table>
+        <thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Valor</th></tr></thead>
+        <tbody id="recent-tbody"><tr><td colspan="5" class="empty">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LANÇAMENTOS -->
+  <div id="tab-lancamentos" class="tab-content">
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Filtros</span>
+        <button class="btn btn-success" onclick="exportExcel()">⬇ Exportar Excel</button>
+      </div>
+      <div class="filters">
+        <select id="filter-type" onchange="loadTransactions()">
+          <option value="">Todos os tipos</option>
+          <option value="receita">Receita</option>
+          <option value="despesa">Despesa</option>
+          <option value="investimento">Investimento</option>
+        </select>
+        <select id="filter-category" onchange="loadTransactions()"><option value="">Todas categorias</option></select>
+        <input type="month" id="filter-month" onchange="loadTransactions()">
+        <button class="btn btn-ghost" onclick="clearFilters()">Limpar</button>
+      </div>
+    </div>
+    <div class="section">
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th>Conta / Pagamento</th><th>Valor</th><th></th></tr>
+        </thead>
+        <tbody id="transactions-tbody"><tr><td colspan="7" class="empty">Nenhum lançamento</td></tr></tbody>
+      </table>
+      <div class="pagination">
+        <span id="pagination-info"></span>
+        <button id="btn-prev" onclick="changePage(-1)" disabled>‹ Ant</button>
+        <button id="btn-next" onclick="changePage(1)" disabled>Próx ›</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- NOVO -->
+  <div id="tab-novo" class="tab-content">
+    <div class="section">
+      <div class="section-header"><span class="section-title">Novo lançamento</span></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Tipo *</label>
+          <select id="new-type" onchange="onTypeChange()">
+            <option value="">Selecione...</option>
+            <option value="receita">💰 Receita</option>
+            <option value="despesa">💸 Despesa</option>
+            <option value="investimento">📈 Investimento</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Categoria *</label>
+          <select id="new-category"><option value="">Selecione o tipo primeiro</option></select>
+        </div>
+        <div class="form-group">
+          <label>Data *</label>
+          <input type="date" id="new-date">
+        </div>
+        <div class="form-group">
+          <label>Valor (R$) *</label>
+          <input type="number" id="new-amount" placeholder="0,00" step="0.01" min="0">
+        </div>
+        <div class="form-group full">
+          <label>Descrição</label>
+          <input type="text" id="new-description" placeholder="Descreva o lançamento...">
+        </div>
+        <div class="form-group conditional" id="field-account">
+          <label>Conta de destino</label>
+          <input type="text" id="new-account" placeholder="Ex: Nubank, Bradesco...">
+        </div>
+        <div class="form-group conditional" id="field-payment">
+          <label>Forma de pagamento</label>
+          <select id="new-payment">
+            <option value="">Selecione...</option>
+            <option>PIX</option><option>Cartão de crédito</option><option>Cartão de débito</option>
+            <option>Boleto</option><option>Dinheiro</option><option>TED/DOC</option>
+          </select>
+        </div>
+        <div class="form-group conditional" id="field-asset">
+          <label>Classe de ativo</label>
+          <select id="new-asset">
+            <option value="">Selecione...</option>
+            <option>Ações</option><option>Criptoativos</option><option>Exterior</option>
+            <option>Fundos de Investimento</option><option>Fundos de Previdência</option>
+            <option>Fundos Imobiliários</option><option>Renda Fixa</option>
+            <option>Tesouro Direto</option><option>Outros</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Observações</label>
+          <textarea id="new-notes" rows="2" placeholder="Observações adicionais..."></textarea>
+        </div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveTransaction()">Salvar lançamento</button>
+        <button class="btn btn-ghost" onclick="clearForm()">Limpar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CATEGORIAS -->
+  <div id="tab-categorias" class="tab-content">
+    <div class="section">
+      <div class="section-header"><span class="section-title">Adicionar categoria</span></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Tipo *</label>
+          <select id="cat-type">
+            <option value="">Selecione...</option>
+            <option value="receita">Receita</option>
+            <option value="despesa">Despesa</option>
+            <option value="investimento">Investimento</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nome *</label>
+          <input type="text" id="cat-name" placeholder="Nome da categoria">
+        </div>
+      </div>
+      <div style="margin-top:1rem">
+        <button class="btn btn-primary" onclick="saveCategory()">Adicionar categoria</button>
+      </div>
+    </div>
+    <div class="cat-grid">
+      <div class="section"><div class="section-header"><span class="section-title">💰 Receita</span></div><div id="cat-receita"></div></div>
+      <div class="section"><div class="section-header"><span class="section-title">💸 Despesa</span></div><div id="cat-despesa"></div></div>
+      <div class="section"><div class="section-header"><span class="section-title">📈 Investimento</span></div><div id="cat-investimento"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDIÇÃO -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Editar lançamento</span>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <input type="hidden" id="edit-id">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Tipo *</label>
+        <select id="edit-type" onchange="onEditTypeChange()">
+          <option value="receita">💰 Receita</option>
+          <option value="despesa">💸 Despesa</option>
+          <option value="investimento">📈 Investimento</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Categoria *</label>
+        <select id="edit-category"></select>
+      </div>
+      <div class="form-group">
+        <label>Data *</label>
+        <input type="date" id="edit-date">
+      </div>
+      <div class="form-group">
+        <label>Valor (R$) *</label>
+        <input type="number" id="edit-amount" step="0.01" min="0">
+      </div>
+      <div class="form-group full">
+        <label>Descrição</label>
+        <input type="text" id="edit-description">
+      </div>
+      <div class="form-group conditional" id="edit-field-account">
+        <label>Conta de destino</label>
+        <input type="text" id="edit-account">
+      </div>
+      <div class="form-group conditional" id="edit-field-payment">
+        <label>Forma de pagamento</label>
+        <select id="edit-payment">
+          <option value="">Selecione...</option>
+          <option>PIX</option><option>Cartão de crédito</option><option>Cartão de débito</option>
+          <option>Boleto</option><option>Dinheiro</option><option>TED/DOC</option>
+        </select>
+      </div>
+      <div class="form-group conditional" id="edit-field-asset">
+        <label>Classe de ativo</label>
+        <select id="edit-asset">
+          <option value="">Selecione...</option>
+          <option>Ações</option><option>Criptoativos</option><option>Exterior</option>
+          <option>Fundos de Investimento</option><option>Fundos de Previdência</option>
+          <option>Fundos Imobiliários</option><option>Renda Fixa</option>
+          <option>Tesouro Direto</option><option>Outros</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Observações</label>
+        <textarea id="edit-notes" rows="2"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:1rem;display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveEdit()">Salvar alterações</button>
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://aqitpzmwmirjaysnahil.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFxaXRwem13bWlyamF5c25haGlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MTA5NjgsImV4cCI6MjA5Mjk4Njk2OH0.U1kSbYmI0pjlR0ohNlDF_bWP1nA_RUM3f6fshVz4hsw';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let allCategories = [];
+let currentPage = 0;
+const PAGE_SIZE = 20;
+let totalRows = 0;
+let rowCache = {};
+
+async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) showApp(session.user);
+  else showLogin();
+}
+
+function showLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-screen').style.display = 'none';
+}
+
+async function showApp(user) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('user-email').textContent = user.email;
+  // Always open on dashboard
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-dashboard').classList.add('active');
+  document.querySelectorAll('.nav button')[0].classList.add('active');
+  await loadCategories();
+  await loadDashboard();
+  setTodayDate();
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('btn-login');
+  errEl.classList.remove('show');
+  if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  btn.disabled = false; btn.textContent = 'Entrar';
+  if (error) { errEl.textContent = 'Erro: ' + error.message; errEl.classList.add('show'); return; }
+  showApp(data.user);
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  showLogin();
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+}
+
+function setTodayDate() {
+  document.getElementById('new-date').value = new Date().toISOString().split('T')[0];
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelectorAll('.nav button')[['dashboard','lancamentos','novo','categorias'].indexOf(tab)].classList.add('active');
+  if (tab === 'dashboard') loadDashboard();
+  if (tab === 'lancamentos') { currentPage = 0; loadTransactions(); }
+  if (tab === 'categorias') renderCategories();
+}
+
+async function loadCategories() {
+  const { data } = await db.from('categories').select('*').order('name');
+  allCategories = data || [];
+  populateFilterCategory();
+}
+
+function populateFilterCategory() {
+  const sel = document.getElementById('filter-category');
+  sel.innerHTML = '<option value="">Todas categorias</option>';
+  const type = document.getElementById('filter-type')?.value;
+  const cats = type ? allCategories.filter(c => c.type === type) : allCategories;
+  cats.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); });
+}
+
+function onTypeChange() {
+  const type = document.getElementById('new-type').value;
+  const catSel = document.getElementById('new-category');
+  catSel.innerHTML = '<option value="">Selecione...</option>';
+  allCategories.filter(c => c.type === type).forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; catSel.appendChild(o); });
+  document.getElementById('field-account').className = 'form-group conditional' + (type === 'receita' ? ' visible' : '');
+  document.getElementById('field-payment').className = 'form-group conditional' + (type === 'despesa' ? ' visible' : '');
+  document.getElementById('field-asset').className = 'form-group conditional' + (type === 'investimento' ? ' visible' : '');
+}
+
+async function loadDashboard() {
+  const { data } = await db.from('transactions').select('type,amount');
+  if (!data) return;
+  const receita = data.filter(r => r.type === 'receita').reduce((s, r) => s + parseFloat(r.amount), 0);
+  const despesa = data.filter(r => r.type === 'despesa').reduce((s, r) => s + parseFloat(r.amount), 0);
+  const investimento = data.filter(r => r.type === 'investimento').reduce((s, r) => s + parseFloat(r.amount), 0);
+  const saldo = receita - despesa - investimento;
+  document.getElementById('total-receita').textContent = formatCurrency(receita);
+  document.getElementById('total-despesa').textContent = formatCurrency(despesa);
+  document.getElementById('total-investimento').textContent = formatCurrency(investimento);
+  const saldoEl = document.getElementById('total-saldo');
+  saldoEl.textContent = formatCurrency(saldo);
+  saldoEl.className = 'value ' + (saldo >= 0 ? 'saldo-pos' : 'saldo-neg');
+  const { data: recent } = await db.from('transactions').select('*,categories(name)').order('date', { ascending: false }).order('created_at', { ascending: false }).limit(5);
+  const tbody = document.getElementById('recent-tbody');
+  if (!recent || recent.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="empty">Nenhum lançamento ainda</td></tr>'; return; }
+  tbody.innerHTML = recent.map(r => `<tr><td>${formatDate(r.date)}</td><td><span class="badge ${r.type}">${r.type}</span></td><td>${r.categories?.name || '-'}</td><td>${r.description || '-'}</td><td class="amount ${r.type}">${formatCurrency(r.amount)}</td></tr>`).join('');
+}
+
+async function loadTransactions() {
+  populateFilterCategory();
+  const type = document.getElementById('filter-type').value;
+  const catId = document.getElementById('filter-category').value;
+  const month = document.getElementById('filter-month').value;
+  let query = db.from('transactions').select('*,categories(name)', { count: 'exact' });
+  if (type) query = query.eq('type', type);
+  if (catId) query = query.eq('category_id', catId);
+  if (month) { query = query.gte('date', month + '-01').lte('date', month + '-31'); }
+  query = query.order('date', { ascending: false }).range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+  const { data, count } = await query;
+  totalRows = count || 0;
+  rowCache = {};
+  const tbody = document.getElementById('transactions-tbody');
+  if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Nenhum lançamento encontrado</td></tr>'; updatePagination(); return; }
+  tbody.innerHTML = data.map(r => {
+    const extra = r.type === 'receita' ? r.account : r.type === 'despesa' ? r.payment_method : r.asset_class;
+    rowCache[r.id] = r;
+    return `<tr><td>${formatDate(r.date)}</td><td><span class="badge ${r.type}">${r.type}</span></td><td>${r.categories?.name || '-'}</td><td>${r.description || '-'}</td><td style="color:var(--text2);font-size:12px">${extra || '-'}</td><td class="amount ${r.type}">${formatCurrency(r.amount)}</td><td style="display:flex;gap:4px"><button class="btn" style="padding:3px 9px;font-size:11px" onclick="openEditModal('${r.id}')">✏</button><button class="btn btn-danger" style="padding:3px 9px;font-size:11px" onclick="deleteTransaction('${r.id}')">✕</button></td></tr>`;
+  }).join('');
+  updatePagination();
+}
+
+function updatePagination() {
+  const start = currentPage * PAGE_SIZE + 1, end = Math.min((currentPage + 1) * PAGE_SIZE, totalRows);
+  document.getElementById('pagination-info').textContent = totalRows > 0 ? `${start}–${end} de ${totalRows}` : '';
+  document.getElementById('btn-prev').disabled = currentPage === 0;
+  document.getElementById('btn-next').disabled = (currentPage + 1) * PAGE_SIZE >= totalRows;
+}
+
+function changePage(dir) { currentPage += dir; loadTransactions(); }
+
+function clearFilters() {
+  document.getElementById('filter-type').value = '';
+  document.getElementById('filter-category').value = '';
+  document.getElementById('filter-month').value = '';
+  currentPage = 0; loadTransactions();
+}
+
+async function saveTransaction() {
+  const type = document.getElementById('new-type').value;
+  const category_id = document.getElementById('new-category').value;
+  const date = document.getElementById('new-date').value;
+  const amount = document.getElementById('new-amount').value;
+  const description = document.getElementById('new-description').value;
+  const notes = document.getElementById('new-notes').value;
+  const account = document.getElementById('new-account').value;
+  const payment_method = document.getElementById('new-payment').value;
+  const asset_class = document.getElementById('new-asset').value;
+  if (!type || !category_id || !date || !amount) { showToast('Preencha os campos obrigatórios'); return; }
+  const { error } = await db.from('transactions').insert([{ type, category_id, date, amount: parseFloat(amount), description, notes, account: type === 'receita' ? account : null, payment_method: type === 'despesa' ? payment_method : null, asset_class: type === 'investimento' ? asset_class : null }]);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('Lançamento salvo!');
+  clearForm();
+  loadDashboard();
+}
+
+function clearForm() {
+  ['new-type','new-category','new-amount','new-description','new-notes','new-account','new-payment','new-asset'].forEach(id => { document.getElementById(id).value = ''; });
+  document.querySelectorAll('.conditional').forEach(el => el.classList.remove('visible'));
+  setTodayDate();
+}
+
+async function deleteTransaction(id) {
+  if (!confirm('Excluir este lançamento?')) return;
+  const { error } = await db.from('transactions').delete().eq('id', id);
+  if (error) { showToast('Erro ao excluir'); return; }
+  showToast('Excluído'); loadTransactions(); loadDashboard();
+}
+
+async function saveCategory() {
+  const type = document.getElementById('cat-type').value;
+  const name = document.getElementById('cat-name').value.trim();
+  if (!type || !name) { showToast('Preencha tipo e nome'); return; }
+  const { error } = await db.from('categories').insert([{ type, name }]);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('Categoria adicionada!');
+  document.getElementById('cat-type').value = '';
+  document.getElementById('cat-name').value = '';
+  await loadCategories(); renderCategories();
+}
+
+function renderCategories() {
+  ['receita','despesa','investimento'].forEach(type => {
+    const cats = allCategories.filter(c => c.type === type);
+    document.getElementById('cat-' + type).innerHTML = cats.length === 0
+      ? '<p style="font-size:12px;color:var(--text3)">Nenhuma categoria</p>'
+      : cats.map(c => `<div class="cat-item">${c.name}<button class="btn btn-danger" style="padding:2px 8px;font-size:11px" onclick="deleteCategory('${c.id}')">✕</button></div>`).join('');
+  });
+}
+
+async function deleteCategory(id) {
+  if (!confirm('Excluir esta categoria?')) return;
+  const { error } = await db.from('categories').delete().eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('Categoria excluída'); await loadCategories(); renderCategories();
+}
+
+async function exportExcel() {
+  showToast('Preparando exportação...');
+  const type = document.getElementById('filter-type').value;
+  const catId = document.getElementById('filter-category').value;
+  const month = document.getElementById('filter-month').value;
+  let query = db.from('transactions').select('*,categories(name)').order('date', { ascending: false });
+  if (type) query = query.eq('type', type);
+  if (catId) query = query.eq('category_id', catId);
+  if (month) { query = query.gte('date', month + '-01').lte('date', month + '-31'); }
+  const { data } = await query;
+  if (!data || data.length === 0) { showToast('Nenhum dado para exportar'); return; }
+  const rows = data.map(r => ({ 'Data': formatDate(r.date), 'Tipo': r.type, 'Categoria': r.categories?.name || '', 'Descrição': r.description || '', 'Valor (R$)': parseFloat(r.amount), 'Conta': r.account || '', 'Pagamento': r.payment_method || '', 'Classe de Ativo': r.asset_class || '', 'Observações': r.notes || '' }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Transações');
+  XLSX.writeFile(wb, 'controle-financeiro-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  showToast('Exportado com sucesso!');
+}
+
+function openEditModal(id) {
+  const r = rowCache[id];
+  if (!r) { showToast('Erro ao abrir edição'); return; }
+  document.getElementById('edit-id').value = r.id;
+  document.getElementById('edit-type').value = r.type;
+  document.getElementById('edit-date').value = r.date;
+  document.getElementById('edit-amount').value = r.amount;
+  document.getElementById('edit-description').value = r.description || '';
+  document.getElementById('edit-notes').value = r.notes || '';
+  document.getElementById('edit-account').value = r.account || '';
+  document.getElementById('edit-payment').value = r.payment_method || '';
+  document.getElementById('edit-asset').value = r.asset_class || '';
+  // Populate categories for type
+  onEditTypeChange(r.category_id);
+  // Show conditional fields
+  document.getElementById('edit-field-account').className = 'form-group conditional' + (r.type === 'receita' ? ' visible' : '');
+  document.getElementById('edit-field-payment').className = 'form-group conditional' + (r.type === 'despesa' ? ' visible' : '');
+  document.getElementById('edit-field-asset').className = 'form-group conditional' + (r.type === 'investimento' ? ' visible' : '');
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function onEditTypeChange(selectedCategoryId = null) {
+  const type = document.getElementById('edit-type').value;
+  const catSel = document.getElementById('edit-category');
+  catSel.innerHTML = '<option value="">Selecione...</option>';
+  allCategories.filter(c => c.type === type).forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = c.name;
+    if (selectedCategoryId && c.id === selectedCategoryId) o.selected = true;
+    catSel.appendChild(o);
+  });
+  document.getElementById('edit-field-account').className = 'form-group conditional' + (type === 'receita' ? ' visible' : '');
+  document.getElementById('edit-field-payment').className = 'form-group conditional' + (type === 'despesa' ? ' visible' : '');
+  document.getElementById('edit-field-asset').className = 'form-group conditional' + (type === 'investimento' ? ' visible' : '');
+}
+
+function closeEditModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+async function saveEdit() {
+  const id = document.getElementById('edit-id').value;
+  const type = document.getElementById('edit-type').value;
+  const category_id = document.getElementById('edit-category').value;
+  const date = document.getElementById('edit-date').value;
+  const amount = document.getElementById('edit-amount').value;
+  const description = document.getElementById('edit-description').value;
+  const notes = document.getElementById('edit-notes').value;
+  const account = document.getElementById('edit-account').value;
+  const payment_method = document.getElementById('edit-payment').value;
+  const asset_class = document.getElementById('edit-asset').value;
+  if (!type || !category_id || !date || !amount) { showToast('Preencha os campos obrigatórios'); return; }
+  const { error } = await db.from('transactions').update({ type, category_id, date, amount: parseFloat(amount), description, notes, account: type === 'receita' ? account : null, payment_method: type === 'despesa' ? payment_method : null, asset_class: type === 'investimento' ? asset_class : null }).eq('id', id);
+  if (error) { showToast('Erro: ' + error.message); return; }
+  showToast('Lançamento atualizado!');
+  closeEditModal();
+  loadTransactions();
+  loadDashboard();
+}
+
+ return 'R$ ' + parseFloat(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function formatDate(d) { if (!d) return '-'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}`; }
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 3000); }
+
+init();
+</script>
+</body>
+</html>
